@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Planning Coworker — Deltek Vantagepoint</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; }
+    .risk-high   { background: #fee2e2; color: #991b1b; }
+    .risk-medium { background: #fef3c7; color: #92400e; }
+    .risk-low    { background: #dcfce7; color: #166534; }
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .spinner { border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; width: 22px; height: 22px; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .diff-added   { background: #dcfce7; }
+    .diff-removed { background: #fee2e2; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header class="bg-indigo-700 text-white shadow-lg">
+  <div class="max-w-screen-xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-lg p-2 text-xl">🤖</div>
+      <div>
+        <h1 class="text-xl font-bold tracking-tight">AI Planning Coworker</h1>
+        <p class="text-indigo-200 text-xs">Deltek Vantagepoint · Powered by Claude</p>
+      </div>
+    </div>
+    <div id="validation-badge" class="text-sm px-3 py-1 rounded-full bg-white/20 text-white">
+      Checking...
+    </div>
+  </div>
+</header>
+
+<div class="max-w-screen-xl mx-auto px-6 py-6 space-y-6">
+
+  <!-- ── Project Summary Cards ──────────────────────────────────── -->
+  <section>
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Project Overview</h2>
+    <div id="project-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="animate-pulse bg-white rounded-xl h-28"></div>
+      <div class="animate-pulse bg-white rounded-xl h-28"></div>
+      <div class="animate-pulse bg-white rounded-xl h-28"></div>
+    </div>
+  </section>
+
+  <!-- ── AI Prompt ───────────────────────────────────────────────── -->
+  <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <h2 class="text-base font-semibold text-slate-700 mb-1">💬 Ask Claude</h2>
+    <p class="text-slate-400 text-xs mb-3">Describe what you'd like to change in plain English.</p>
+
+    <textarea id="prompt"
+      class="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      rows="3"
+      placeholder="e.g. Rebalance Project Titan to keep utilization under 82%"></textarea>
+
+    <!-- Example prompts -->
+    <div class="flex flex-wrap gap-2 mt-2">
+      <span class="text-xs text-slate-400 mt-1">Try:</span>
+      <button onclick="setPrompt(this)" class="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200">Who is over-utilized?</button>
+      <button onclick="setPrompt(this)" class="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200">Rebalance Project Titan under 82% utilization</button>
+      <button onclick="setPrompt(this)" class="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200">Increase billing rate for Project Atlas by 15%</button>
+      <button onclick="setPrompt(this)" class="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200">Increase burden rate to 35% for Project Helios</button>
+    </div>
+
+    <div class="flex gap-3 mt-4">
+      <button onclick="sendPrompt(false)"
+        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+        <span id="btn-preview-icon">🔍</span> Preview Changes
+      </button>
+      <button onclick="sendPrompt(true)"
+        class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+        <span>🚀</span> Apply & Push to Deltek
+      </button>
+    </div>
+  </section>
+
+  <!-- ── AI Results Panel ────────────────────────────────────────── -->
+  <section id="results-panel" class="hidden fade-in space-y-4">
+
+    <!-- Understanding -->
+    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+      <p class="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-1">Claude understood</p>
+      <p id="res-understanding" class="text-sm text-indigo-800"></p>
+    </div>
+
+    <!-- Changes + Scenario Diff -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- Changes made -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Changes Applied</p>
+        <div id="res-changes" class="space-y-2 text-sm"></div>
+      </div>
+
+      <!-- Scenario comparison -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scenario Impact</p>
+        <div id="res-scenario" class="space-y-2 text-sm"></div>
+      </div>
+    </div>
+
+    <!-- Warnings -->
+    <div id="res-warnings-wrap" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <p class="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">⚠️ Warnings</p>
+      <ul id="res-warnings" class="text-sm text-amber-800 space-y-1 list-disc list-inside"></ul>
+    </div>
+
+    <!-- Validation result -->
+    <div id="res-validation-wrap" class="rounded-xl p-4 border"></div>
+
+    <!-- Push result -->
+    <div id="res-push" class="hidden rounded-xl p-4 border bg-emerald-50 border-emerald-300 text-emerald-800 text-sm font-medium">
+      ✅ Successfully pushed to Deltek Vantagepoint.
+    </div>
+  </section>
+
+  <!-- ── Upload Excel ──────────────────────────────────────────────── -->
+  <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <h2 class="text-base font-semibold text-slate-700 mb-1">📂 Import from Excel</h2>
+    <p class="text-slate-400 text-xs mb-3">Upload a <code>.xlsx</code> file to replace the current planning data, then use the AI prompt to manipulate it.</p>
+
+    <div id="drop-zone"
+      class="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition"
+      onclick="document.getElementById('file-input').click()"
+      ondragover="event.preventDefault(); this.classList.add('border-indigo-400','bg-indigo-50')"
+      ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+      ondrop="handleDrop(event)">
+      <p class="text-slate-400 text-sm">Drag & drop your <strong>.xlsx</strong> file here, or <span class="text-indigo-500 underline">click to browse</span></p>
+      <p id="upload-filename" class="text-xs text-slate-400 mt-1"></p>
+    </div>
+    <input id="file-input" type="file" accept=".xlsx" class="hidden" onchange="uploadFile(this.files[0])" />
+
+    <div id="upload-status" class="hidden mt-3 text-sm rounded-lg px-4 py-2"></div>
+  </section>
+
+  <!-- ── Employee Table ──────────────────────────────────────────── -->
+  <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-slate-700">📋 Planning Data</h2>
+      <button onclick="loadAll()" class="text-xs text-indigo-500 hover:underline">↻ Refresh</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs text-left">
+        <thead class="bg-slate-50 text-slate-500 uppercase tracking-wider">
+          <tr>
+            <th class="px-4 py-2">Employee</th>
+            <th class="px-4 py-2">Role</th>
+            <th class="px-4 py-2">Project</th>
+            <th class="px-4 py-2">Labor Rate</th>
+            <th class="px-4 py-2">Billing Rate</th>
+            <th class="px-4 py-2">Burdened Rate</th>
+            <th class="px-4 py-2">Labor Cost</th>
+            <th class="px-4 py-2">Revenue Forecast</th>
+            <th class="px-4 py-2">Margin %</th>
+            <th class="px-4 py-2">Utilization %</th>
+            <th class="px-4 py-2">Risk</th>
+            <th class="px-4 py-2">Phase</th>
+          </tr>
+        </thead>
+        <tbody id="employee-table" class="divide-y divide-slate-100 text-slate-700"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div><!-- /container -->
+
+<script>
+// ── API helpers ─────────────────────────────────────────────────────────────
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw err;
+  }
+  return res.json();
+}
+
+// ── Load project summary cards ───────────────────────────────────────────────
+
+async function loadProjectSummary() {
+  try {
+    const data = await api('/scenario/summary');
+    const projects = data.projects;
+    const colors = {
+      'Project Atlas':  { bg: 'bg-blue-50',   border: 'border-blue-200',   icon: '🔵' },
+      'Project Helios': { bg: 'bg-purple-50',  border: 'border-purple-200', icon: '🟣' },
+      'Project Titan':  { bg: 'bg-orange-50',  border: 'border-orange-200', icon: '🟠' },
+    };
+    const html = Object.entries(projects).map(([name, m]) => {
+      const c = colors[name] || { bg: 'bg-slate-50', border: 'border-slate-200', icon: '⚪' };
+      const utilizationColor = m.avg_utilization_pct > 88 ? 'text-red-600' :
+                               m.avg_utilization_pct > 80 ? 'text-amber-600' : 'text-green-600';
+      return `
+        <div class="${c.bg} ${c.border} border rounded-xl p-4">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">${c.icon} ${name}</p>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <span class="text-slate-500">Headcount</span>  <span class="font-medium">${m.headcount}</span>
+            <span class="text-slate-500">Revenue</span>    <span class="font-medium">$${(m.total_revenue/1000).toFixed(0)}K</span>
+            <span class="text-slate-500">Labor Cost</span> <span class="font-medium">$${(m.total_labor_cost/1000).toFixed(0)}K</span>
+            <span class="text-slate-500">Avg Margin</span> <span class="font-medium">${m.avg_margin_pct}%</span>
+            <span class="text-slate-500">Avg Util</span>   <span class="font-medium ${utilizationColor}">${m.avg_utilization_pct}%</span>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('project-cards').innerHTML = html;
+  } catch (e) {
+    document.getElementById('project-cards').innerHTML =
+      '<p class="text-red-500 text-sm col-span-3">Failed to load project summary.</p>';
+  }
+}
+
+// ── Load validation badge ────────────────────────────────────────────────────
+
+async function loadValidationBadge() {
+  try {
+    const data = await api('/validate');
+    const badge = document.getElementById('validation-badge');
+    if (data.valid && data.blocking.length === 0) {
+      badge.className = 'text-sm px-3 py-1 rounded-full bg-emerald-500 text-white';
+      badge.textContent = `✓ ${data.warnings.length} warning(s)`;
+    } else {
+      badge.className = 'text-sm px-3 py-1 rounded-full bg-red-500 text-white';
+      badge.textContent = `⚠ ${data.blocking.length} blocking issue(s)`;
+    }
+  } catch (e) {
+    document.getElementById('validation-badge').textContent = 'Validation unavailable';
+  }
+}
+
+// ── Load employee table ──────────────────────────────────────────────────────
+
+async function loadEmployeeTable() {
+  try {
+    const rows = await api('/data');
+    const tbody = document.getElementById('employee-table');
+    tbody.innerHTML = rows.map(r => {
+      const riskClass = r['Risk Level'] === 'High' ? 'risk-high' :
+                        r['Risk Level'] === 'Medium' ? 'risk-medium' : 'risk-low';
+      const utilColor = r['Current Utilization %'] > 88 ? 'text-red-600 font-bold' :
+                        r['Current Utilization %'] > 80 ? 'text-amber-600 font-semibold' : '';
+      return `<tr class="hover:bg-slate-50 transition">
+        <td class="px-4 py-2 font-medium text-slate-800">${r['Employee Name']}</td>
+        <td class="px-4 py-2 text-slate-500">${r['Role']}</td>
+        <td class="px-4 py-2">${r['Project Designation']}</td>
+        <td class="px-4 py-2">${r['Labor Rate']}</td>
+        <td class="px-4 py-2">${r['Billing Rate']}</td>
+        <td class="px-4 py-2">${r['Fully Burdened Rate']}</td>
+        <td class="px-4 py-2">$${Number(r['Est. Total Labor Cost']).toLocaleString()}</td>
+        <td class="px-4 py-2">$${Number(r['Revenue Forecast']).toLocaleString()}</td>
+        <td class="px-4 py-2">${r['Target Margin %']}%</td>
+        <td class="px-4 py-2 ${utilColor}">${r['Current Utilization %']}%</td>
+        <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${riskClass}">${r['Risk Level']}</span></td>
+        <td class="px-4 py-2">${r['Project Phase']}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('employee-table').innerHTML =
+      '<tr><td colspan="12" class="px-4 py-4 text-red-500 text-center">Failed to load data.</td></tr>';
+  }
+}
+
+// ── Send prompt to Claude ────────────────────────────────────────────────────
+
+async function sendPrompt(pushToDeltek) {
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) { alert('Please enter a prompt.'); return; }
+
+  const icon = document.getElementById('btn-preview-icon');
+  icon.innerHTML = '<div class="spinner inline-block"></div>';
+
+  // Clear previous results
+  document.getElementById('results-panel').classList.add('hidden');
+  document.getElementById('res-push').classList.add('hidden');
+
+  try {
+    const result = await api('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, push_to_deltek: pushToDeltek }),
+    });
+
+    renderResults(result, pushToDeltek);
+    await loadAll();
+
+  } catch (err) {
+    const detail = err?.detail || JSON.stringify(err);
+    alert(`Error: ${detail}`);
+  } finally {
+    icon.textContent = '🔍';
+  }
+}
+
+// ── Render AI results ────────────────────────────────────────────────────────
+
+function renderResults(result, wasPushed) {
+  const panel = document.getElementById('results-panel');
+
+  // Understanding
+  document.getElementById('res-understanding').textContent =
+    result.understanding || '(no understanding returned)';
+
+  // Changes
+  const changes = result.changes || [];
+  document.getElementById('res-changes').innerHTML = changes.length === 0
+    ? '<p class="text-slate-400 italic">No field changes were made.</p>'
+    : changes.map(c => `
+        <div class="flex items-start gap-2 border border-slate-100 rounded-lg p-2">
+          <span class="text-indigo-400 mt-0.5">▸</span>
+          <div>
+            <span class="font-medium text-slate-700">${c.employee}</span>
+            <span class="text-slate-400 mx-1">·</span>
+            <span class="text-slate-500">${c.field}</span>
+            <span class="mx-1 text-slate-300">→</span>
+            <span class="font-medium text-emerald-600">${c.new_value}</span>
+          </div>
+        </div>`).join('');
+
+  // Scenario impact
+  const scenario = result.scenario || {};
+  const overall  = scenario.overall || {};
+  const before   = overall.before || {};
+  const after    = overall.after  || {};
+  const diffs    = scenario.employee_diffs || [];
+
+  let scenarioHtml = '';
+  if (before.total_revenue !== undefined) {
+    const revDelta  = (after.total_revenue  - before.total_revenue).toFixed(0);
+    const costDelta = (after.total_labor_cost - before.total_labor_cost).toFixed(0);
+    const mDelta    = (after.avg_margin_pct  - before.avg_margin_pct).toFixed(1);
+    const uDelta    = (after.avg_utilization_pct - before.avg_utilization_pct).toFixed(1);
+
+    scenarioHtml += `
+      <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+        ${metricRow('Revenue',      before.total_revenue,       after.total_revenue,       revDelta,  '$', true)}
+        ${metricRow('Labor Cost',   before.total_labor_cost,    after.total_labor_cost,    costDelta, '$', false)}
+        ${metricRow('Avg Margin',   before.avg_margin_pct,      after.avg_margin_pct,      mDelta,    '',  true, '%')}
+        ${metricRow('Avg Util',     before.avg_utilization_pct, after.avg_utilization_pct, uDelta,    '',  false, '%')}
+      </div>`;
+  }
+  if (diffs.length > 0) {
+    scenarioHtml += `<p class="text-xs text-slate-500 mb-1">${diffs.length} employee(s) changed:</p>`;
+    scenarioHtml += diffs.map(d => `
+      <div class="text-xs border border-slate-100 rounded p-2 mb-1">
+        <span class="font-medium">${d.employee}</span>
+        <span class="text-slate-400 ml-1">(${d.project})</span>
+        ${Object.entries(d.changes).map(([f, v]) => `
+          <div class="flex gap-1 mt-1 text-slate-500">
+            <span class="text-slate-400">${f}:</span>
+            <span class="diff-removed px-1 rounded line-through">${v.before}</span>
+            <span>→</span>
+            <span class="diff-added px-1 rounded font-medium">${v.after}</span>
+            ${v.delta !== undefined ? `<span class="text-slate-400">(${v.delta > 0 ? '+' : ''}${v.delta})</span>` : ''}
+          </div>`).join('')}
+      </div>`).join('');
+  }
+  document.getElementById('res-scenario').innerHTML =
+    scenarioHtml || '<p class="text-slate-400 italic">No scenario data.</p>';
+
+  // Warnings
+  const warnings = result.warnings || [];
+  if (warnings.length > 0) {
+    document.getElementById('res-warnings-wrap').classList.remove('hidden');
+    document.getElementById('res-warnings').innerHTML =
+      warnings.map(w => `<li>${w}</li>`).join('');
+  } else {
+    document.getElementById('res-warnings-wrap').classList.add('hidden');
+  }
+
+  // Validation
+  const valWrap = document.getElementById('res-validation-wrap');
+  const validation = result.push_validation || result.scenario?.violations;
+  if (result.push_validation) {
+    const v = result.push_validation;
+    if (v.valid) {
+      valWrap.className = 'rounded-xl p-4 border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm';
+      valWrap.innerHTML = `<p class="font-medium">✅ ${v.summary}</p>`;
+    } else {
+      valWrap.className = 'rounded-xl p-4 border bg-red-50 border-red-200 text-red-800 text-sm';
+      valWrap.innerHTML = `<p class="font-medium mb-2">❌ ${v.summary}</p>
+        ${v.blocking.map(b => `<p class="text-xs">• ${b.employee}: ${b.rule} — ${b.detail}</p>`).join('')}`;
+    }
+  } else {
+    const viols = scenario.violations || [];
+    if (viols.length === 0) {
+      valWrap.className = 'rounded-xl p-4 border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm';
+      valWrap.innerHTML = '<p class="font-medium">✅ No violations in scenario result.</p>';
+    } else {
+      valWrap.className = 'rounded-xl p-4 border bg-amber-50 border-amber-200 text-amber-800 text-sm';
+      valWrap.innerHTML = `<p class="font-medium mb-2">⚠️ ${viols.length} violation(s) in result</p>
+        ${viols.slice(0,5).map(v => `<p class="text-xs">• ${v.employee}: ${v.rule}</p>`).join('')}`;
+    }
+  }
+
+  // Push status
+  if (wasPushed && result.pushed_to_deltek) {
+    document.getElementById('res-push').classList.remove('hidden');
+  }
+
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function metricRow(label, before, after, delta, prefix = '', higherIsBetter = true, suffix = '') {
+  const isPositive = parseFloat(delta) > 0;
+  const isGood = higherIsBetter ? isPositive : !isPositive;
+  const deltaColor = parseFloat(delta) === 0 ? 'text-slate-400' : isGood ? 'text-emerald-600' : 'text-red-600';
+  const fmtVal = (v) => prefix === '$' ? `$${Number(v).toLocaleString()}${suffix}` : `${v}${suffix}`;
+  return `
+    <div class="col-span-1 bg-slate-50 rounded-lg p-2">
+      <p class="text-slate-400 text-xs">${label}</p>
+      <p class="font-medium">${fmtVal(after)}</p>
+      <p class="text-xs ${deltaColor}">${parseFloat(delta) >= 0 ? '+' : ''}${prefix === '$' ? '$' + Math.abs(delta).toLocaleString() : delta}${suffix} vs before</p>
+    </div>`;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function setPrompt(btn) {
+  document.getElementById('prompt').value = btn.textContent.trim();
+}
+
+async function loadAll() {
+  await Promise.all([
+    loadProjectSummary(),
+    loadEmployeeTable(),
+    loadValidationBadge(),
+  ]);
+}
+
+// ── Upload Excel ─────────────────────────────────────────────────────────────
+
+function handleDrop(event) {
+  event.preventDefault();
+  document.getElementById('drop-zone').classList.remove('border-indigo-400','bg-indigo-50');
+  const file = event.dataTransfer.files[0];
+  if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+  if (!file || !file.name.endsWith('.xlsx')) {
+    showUploadStatus('Only .xlsx files are supported.', false);
+    return;
+  }
+
+  document.getElementById('upload-filename').textContent = `Selected: ${file.name}`;
+  showUploadStatus('Uploading...', null);
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    showUploadStatus(`✅ ${data.message} Projects: ${data.projects.join(', ')}`, true);
+    await loadAll();
+  } catch (e) {
+    showUploadStatus(`❌ ${e.message}`, false);
+  }
+}
+
+function showUploadStatus(msg, success) {
+  const el = document.getElementById('upload-status');
+  el.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200',
+                                 'bg-red-50',     'text-red-800',     'border-red-200',
+                                 'bg-slate-50',   'text-slate-600',   'border-slate-200');
+  if (success === true) {
+    el.className = 'mt-3 text-sm rounded-lg px-4 py-2 border bg-emerald-50 text-emerald-800 border-emerald-200';
+  } else if (success === false) {
+    el.className = 'mt-3 text-sm rounded-lg px-4 py-2 border bg-red-50 text-red-800 border-red-200';
+  } else {
+    el.className = 'mt-3 text-sm rounded-lg px-4 py-2 border bg-slate-50 text-slate-600 border-slate-200';
+  }
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
