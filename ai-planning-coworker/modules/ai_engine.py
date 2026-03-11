@@ -32,9 +32,19 @@ Business rules to enforce:
 - Target Margin % must remain positive. Warn if it drops below 10%.
 - Est. Total Labor Cost must not exceed Project Total Budget. Warn if it does.
 
+There are two types of requests:
+
+1. QUERY — user wants to display, filter, or analyse data (no changes needed).
+   Examples: "show projects in progress", "who is over-utilised?", "list all employees"
+
+2. CHANGE — user wants to modify, update, or optimise data.
+   Examples: "increase billing rate by 10%", "rebalance utilisation under 82%"
+
 You MUST respond with a valid JSON object only — no markdown, no extra text:
 {{
   "understanding": "brief restatement of what the user wants",
+  "type": "query" or "change",
+  "display": "for QUERY requests: a clear, well-formatted plain-text answer using only data from the planning data provided. Do NOT invent or assume data.",
   "changes": [
     {{
       "employee": "exact employee name from the data",
@@ -42,14 +52,16 @@ You MUST respond with a valid JSON object only — no markdown, no extra text:
       "new_value": "new value in same format as existing data"
     }}
   ],
-  "summary": "human-readable summary of all changes made",
+  "summary": "human-readable summary of the query answer or changes made",
   "warnings": ["any business rule violations or concerns"]
 }}
 
 Format rules:
+- For QUERY requests: leave "changes" as an empty array [], put the full answer in "display".
+- For CHANGE requests: leave "display" as an empty string "", list all changes in "changes".
 - Rates use format: "$50/hr"
 - Numeric fields (Allocation %, Utilization %, etc.) use plain numbers: 85
-- If no changes are needed, return an empty changes array with a helpful summary.
+- Only use data that exists in the planning data — never invent values.
 """
 
 

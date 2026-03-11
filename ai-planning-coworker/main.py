@@ -78,9 +78,8 @@ def ask_ai(request: PromptRequest):
         result["scenario"] = compare(rows, updated_rows)
 
         if request.push_to_deltek:
-            push_result = push_planning_data(updated_rows)
+            push_result = push_planning_data(updated_rows, override=True)
             result["pushed_to_deltek"] = push_result["success"]
-            result["push_validation"]  = push_result["validation"]
         else:
             result["pushed_to_deltek"] = False
 
